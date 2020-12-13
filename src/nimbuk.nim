@@ -1,4 +1,6 @@
-import markdown, npeg, os, strformat, strutils, system, tables
+import htmlparser, markdown, npeg, os, strformat, strtabs, strutils, system,
+    tables, xmltree
+from htmlgen import html
 
 proc createInitialBook =
   writeFile("src/nb_CONTENTS.md", "# Table of Contents\n\n- [Chapter 1](./chapter-1.md)")
@@ -12,20 +14,31 @@ proc parseLinkedPages(contentsPage: string): Table[string, string] =
     contentLink <- @"- " * link
     link <- '[' * >title * "](./" * >path * ')': pages[$1] = $2
     title <- +(Alnum * ?Space)
-    path <- +{'A'..'Z','a'..'z','0'..'9', '.', '/', '-', '_'}
+    path <- +{'A'..'Z', 'a'..'z', '0'..'9', '.', '/', '-', '_'}
 
   discard linkParser.match(contentsPage)
   return pages
 
 # TODO: The title grammar doesn't cover enough characters
 doAssert parseLinkedPages("- [Test](./test.md)") == {"Test": "test.md"}.toTable
-doAssert parseLinkedPages("- [Test Spaces](./test.md)") == {"Test Spaces": "test.md"}.toTable
-doAssert parseLinkedPages("- [Test Caps 1](./Caps_n-Numz0123456789.md)") == {"Test Caps 1": "Caps_n-Numz0123456789.md"}.toTable
-doAssert parseLinkedPages("- [Test](./test.md)\n- [Boop](./flurb.md)") == {"Test": "test.md", "Boop": "flurb.md"}.toTable
+doAssert parseLinkedPages("- [Test Spaces](./test.md)") == {
+    "Test Spaces": "test.md"}.toTable
+doAssert parseLinkedPages("- [Test Caps 1](./Caps_n-Numz0123456789.md)") == {
+    "Test Caps 1": "Caps_n-Numz0123456789.md"}.toTable
+doAssert parseLinkedPages("- [Test](./test.md)\n- [Boop](./flurb.md)") == {
+    "Test": "test.md", "Boop": "flurb.md"}.toTable
 
-# TODO: Filthy hack, need to figure out a better way.  htmlparser lib is a bit shit
+# TODO: Probably need to pull this into it's own module as part of the whole page boiler plate
 proc parseAndReplaceLinks(contentsPage: var string) =
-  contentsPage = contentsPage.replace(".md", ".html")
+  var html = parseHtml html(contentsPage)
+
+  for node in html.findAll("a"):
+    if node.attrs.hasKey "href":
+      let (dir, filename, ext) = splitFile(node.attrs["href"])
+      if cmpIgnoreCase(ext, ".md") == 0:
+        node.attrs["href"] = dir / filename & ".html"
+
+  contentsPage = $html
 
 proc initialiseMissingPages(pages: Table[string, string], path: string) =
   for page in pages.pairs:
@@ -42,13 +55,13 @@ proc build(path = "src") =
   let contentsPageMD = readFile(path & "/nb_CONTENTS.md")
   var pages = parseLinkedPages(contentsPageMD)
   initialiseMissingPages(pages, path)
-  
+
   if not dirExists "out":
     createDir "out"
-  
+
   var contentsHTML = markdown(contentsPageMD)
   parseAndReplaceLinks contentsHTML
-  
+
   writeFile("out/index.html", contentsHTML)
 
   for page in pages.pairs:
@@ -66,4 +79,4 @@ proc init =
 
 when isMainModule:
   import cligen
-  dispatchMulti([build],[init])
+  dispatchMulti([build], [init])
