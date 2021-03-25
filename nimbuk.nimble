@@ -10,7 +10,6 @@ license       = "GNU GPLv3"
 srcDir        = "src"
 bin           = @["nimbuk"]
 
-
 # Dependencies
 
 requires "nim >= 1.4.2"

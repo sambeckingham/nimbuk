@@ -6,13 +6,17 @@ proc createInitialBook =
   writeFile("src/nb_CONTENTS.md", "# Table of Contents\n\n- [Chapter 1](./chapter-1.md)")
   writeFile("src/chapter-1.md", "# Chapter 1")
 
+#[ TODO: Bug occurs when two titles/filename is the same.
+ - Needs to move to OrderedTable
+ - Needs page objects, something like { title, filepath }
+]# 
 proc parseLinkedPages(contentsPage: string): Table[string, string] =
   var pages: Table[string, string]
 
   let linkParser = peg contentLinks:
     contentLinks <- +contentLink
     contentLink <- @"- " * link
-    link <- '[' * >title * "](./" * >path * ')': pages[$1] = $2
+    # link <- '[' * >title * "](./" * >path * ')': pages[$2] = $1
     title <- +(Alnum * ?Space)
     path <- +{'A'..'Z', 'a'..'z', '0'..'9', '.', '/', '-', '_'}
 
@@ -27,6 +31,8 @@ doAssert parseLinkedPages("- [Test Caps 1](./Caps_n-Numz0123456789.md)") == {
     "Test Caps 1": "Caps_n-Numz0123456789.md"}.toTable
 doAssert parseLinkedPages("- [Test](./test.md)\n- [Boop](./flurb.md)") == {
     "Test": "test.md", "Boop": "flurb.md"}.toTable
+doAssert parseLinkedPages("- [Chapter 2](./chapter_3.md)") == {
+    "Chapter 2": "chapter_3.md"}.toTable
 
 # TODO: Probably need to pull this into it's own module as part of the whole page boiler plate
 proc parseAndReplaceLinks(contentsPage: var string) =
@@ -42,6 +48,7 @@ proc parseAndReplaceLinks(contentsPage: var string) =
 
 proc initialiseMissingPages(pages: Table[string, string], path: string) =
   for page in pages.pairs:
+    echo &"{page} !"
     # TODO: Does not create sub folders, need to split page[1] and create dir
     let pagePath = &"{path}/{page[1]}"
     if not fileExists(pagePath):
